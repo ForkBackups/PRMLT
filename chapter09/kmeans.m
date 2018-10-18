@@ -1,28 +1,31 @@
-function [label, energy, model] = kmeans(X, init)
-% Perform k-means clustering.
+function [label, mu, energy] = kmeans(X, m)
+% Perform kmeans clustering.
 % Input:
 %   X: d x n data matrix
-%   init: k number of clusters or label (1 x n vector)
+%   m: initialization parameter
 % Output:
-%   label: 1 x n cluster label
+%   label: 1 x n sample labels
+%   mu: d x k center of clusters
 %   energy: optimization target value
-%   model: trained model structure
 % Written by Mo Chen (sth4nth@gmail.com).
-n = size(X,2);
-if numel(init)==1
-    k = init;
-    label = ceil(k*rand(1,n));
-elseif numel(init)==n
-    label = init;
-end
-last = 0;
+label = init(X, m);
+n = numel(label);
+idx = 1:n;
+last = zeros(1,n);
 while any(label ~= last)
-    [u,~,label(:)] = unique(label);   % remove empty clusters
-    k = numel(u);
-    E = sparse(1:n,label,1,n,k,n);  % transform label into indicator matrix
-    m = X*(E*spdiags(1./sum(E,1)',0,k,k));    % compute centers 
-    last = label;
-    [val,label] = max(bsxfun(@minus,m'*X,dot(m,m,1)'/2),[],1); % assign labels
+    [~,~,last(:)] = unique(label);                  % remove empty clusters
+    mu = X*normalize(sparse(idx,last,1),1);         % compute cluster centers 
+    [val,label] = min(dot(mu,mu,1)'/2-mu'*X,[],1);  % assign sample labels
 end
-energy = dot(X(:),X(:))-2*sum(val); 
-model.means = m;
+energy = dot(X(:),X(:),1)+2*sum(val);
+
+function label = init(X, m)
+[d,n] = size(X);
+if numel(m) == 1                           % random initialization
+    mu = X(:,randperm(n,m));
+    [~,label] = min(dot(mu,mu,1)'/2-mu'*X,[],1); 
+elseif all(size(m) == [1,n])               % init with labels
+    label = m;
+elseif size(m,1) == d                      % init with seeds (centers)
+    [~,label] = min(dot(m,m,1)'/2-m'*X,[],1); 
+end
